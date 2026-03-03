@@ -266,6 +266,11 @@ struct MainView: View {
         .fullScreenCover(isPresented: $showLaporan) {
             LaporanView()
         }
+        // ── Siri / App Intents deep-link ──────────────────────────────────
+        // ScanReceiptIntent posts this notification → opens scan screen directly
+        .onReceive(NotificationCenter.default.publisher(for: .openScanScreen)) { _ in
+            showScan = true
+        }
     }
 }
 
