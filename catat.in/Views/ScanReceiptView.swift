@@ -1,15 +1,27 @@
 import SwiftUI
+import Combine
+import AVFoundation
+import SwiftUI
 
 struct ScanReceiptView: View {
     @Environment(\.presentationMode) var presentationMode
-    var onScan: (() -> Void)?
-    var onUpload: (() -> Void)?
+    @EnvironmentObject var repo: ExpenseRepository
+    
+    @StateObject private var scannerVM = ReceiptScannerViewModel()
+    @State private var showCamera = false
+    @State private var showPhotoLibrary = false
+    @State private var showPreview = false
+    @State private var selectedImage: UIImage?
+    @State private var isFlashOn = false
+    
+    var onDismiss: (() -> Void)?
     
     var body: some View {
         VStack(spacing: 0) {
             // Header
             HStack {
                 Button(action: {
+                    onDismiss?()
                     presentationMode.wrappedValue.dismiss()
                 }) {
                     Image(systemName: "arrow.left")
@@ -116,7 +128,7 @@ struct ScanReceiptView: View {
                     VStack(spacing: 24) {
                         // Capture Controls
                         HStack(spacing: 32) {
-                            Button(action: {}) {
+                            Button(action: { showPhotoLibrary = true }) {
                                 ZStack {
                                     Circle()
                                         .fill(Color(white: 0.95))
@@ -126,7 +138,13 @@ struct ScanReceiptView: View {
                                 }
                             }
                             
-                            Button(action: {}) {
+                            Button(action: {
+                                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                                    showCamera = true
+                                } else {
+                                    showPhotoLibrary = true
+                                }
+                            }) {
                                 ZStack {
                                     Circle()
                                         .fill(Color.green.opacity(0.2))
@@ -140,13 +158,13 @@ struct ScanReceiptView: View {
                                 }
                             }
                             
-                            Button(action: {}) {
+                            Button(action: toggleFlash) {
                                 ZStack {
                                     Circle()
-                                        .fill(Color(white: 0.95))
+                                        .fill(isFlashOn ? Color.yellow.opacity(0.2) : Color(white: 0.95))
                                         .frame(width: 48, height: 48)
-                                    Image(systemName: "bolt.fill")
-                                        .foregroundColor(.gray)
+                                    Image(systemName: isFlashOn ? "bolt.fill" : "bolt.slash.fill")
+                                        .foregroundColor(isFlashOn ? .yellow : .gray)
                                 }
                             }
                         }
@@ -155,7 +173,11 @@ struct ScanReceiptView: View {
                         // Actions
                         VStack(spacing: 16) {
                             Button(action: {
-                                onScan?()
+                                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                                    showCamera = true
+                                } else {
+                                    showPhotoLibrary = true
+                                }
                             }) {
                                 Text("Scan Sekarang")
                                     .font(.system(size: 16, weight: .semibold))
@@ -167,7 +189,7 @@ struct ScanReceiptView: View {
                             }
                             
                             Button(action: {
-                                onUpload?()
+                                showPhotoLibrary = true
                             }) {
                                 Text("Upload Gambar")
                                     .font(.system(size: 16, weight: .semibold))
@@ -190,6 +212,86 @@ struct ScanReceiptView: View {
         }
         .background(Color(white: 0.98).ignoresSafeArea())
         .navigationBarHidden(true)
+        .overlay(
+            Group {
+                if case .processing = scannerVM.state {
+                    ZStack {
+                        Color.black.opacity(0.5).ignoresSafeArea()
+                        VStack(spacing: 24) {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(1.5)
+                            Text("AI sedang membaca struk...")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+            }
+        )
+        .sheet(isPresented: $showCamera) {
+            CameraScannerView(selectedImage: $selectedImage, sourceType: .camera)
+        }
+        .sheet(isPresented: $showPhotoLibrary) {
+            CameraScannerView(selectedImage: $selectedImage, sourceType: .photoLibrary)
+        }
+        .onChange(of: selectedImage) { img in
+            if let targetImage = img {
+                scannerVM.processImage(targetImage)
+            }
+        }
+        .onReceive(scannerVM.$state) { state in
+            if case .success = state {
+                showPreview = true
+            } else if case .failed(let err) = state {
+                print(err)
+                scannerVM.reset()
+                selectedImage = nil
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { showPreview },
+            set: { val in
+                if !val {
+                    scannerVM.reset()
+                    selectedImage = nil
+                }
+                showPreview = val
+            }
+        )) {
+            if case .success(let data) = scannerVM.state {
+                ExpensePreviewView(
+                    merchant: data.merchant,
+                    amount: String(format: "%.0f", data.totalAmount),
+                    onSave: { expense in
+                        repo.addExpense(expense)
+                        showPreview = false
+                        scannerVM.reset()
+                        selectedImage = nil
+                        onDismiss?()
+                        presentationMode.wrappedValue.dismiss()
+                    },
+                    onCancel: {
+                        showPreview = false
+                        scannerVM.reset()
+                        selectedImage = nil
+                    }
+                )
+            }
+        }
+    }
+    
+    private func toggleFlash() {
+        guard let device = AVCaptureDevice.default(for: AVMediaType.video), device.hasTorch else { return }
+        do {
+            try device.lockForConfiguration()
+            let isOn = device.torchMode == .on
+            device.torchMode = isOn ? .off : .on
+            isFlashOn = !isOn
+            device.unlockForConfiguration()
+        } catch {
+            print("Torch could not be used")
+        }
     }
 }
 

@@ -1,16 +1,23 @@
-import Foundation
 import Combine
+import Foundation
 
 class ExpenseRepository: ObservableObject {
     @Published var expenses: [Expense] = []
+    @Published var monthlyLimit: Double = 3800000 // default as seen in mock
     
     init() {
         loadExpenses()
+        loadLimit()
     }
     
     func addExpense(_ expense: Expense) {
         expenses.append(expense)
         saveExpenses()
+    }
+    
+    func setLimit(_ limit: Double) {
+        monthlyLimit = limit
+        UserDefaults.standard.set(limit, forKey: "catatin_monthly_limit")
     }
     
     func getTotalForCurrentMonth() -> Double {
@@ -38,6 +45,13 @@ class ExpenseRepository: ObservableObject {
     private func saveExpenses() {
         if let encoded = try? JSONEncoder().encode(expenses) {
             UserDefaults.standard.set(encoded, forKey: storageKey)
+        }
+    }
+    
+    private func loadLimit() {
+        let savedLimit = UserDefaults.standard.double(forKey: "catatin_monthly_limit")
+        if savedLimit > 0 {
+            self.monthlyLimit = savedLimit
         }
     }
     

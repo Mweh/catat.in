@@ -47,7 +47,7 @@ struct DashboardView: View {
                     HStack {
                         Text("Total Pengeluaran")
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.gray)
+                            .foregroundColor(.white.opacity(0.8))
                         Spacer()
                         Button(action: {
                             onSetLimitTapped?()
@@ -62,19 +62,20 @@ struct DashboardView: View {
                         }
                     }
                     
-                    Text("Rp 2.450.000")
+                    Text(FormattedCurrency.format(repo.getTotalForCurrentMonth()))
                         .font(.system(size: 36, weight: .bold))
-                        .foregroundColor(Color(red: 0.05, green: 0.1, blue: 0.2))
+                        .foregroundColor(.white)
                     
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("65% Terpakai")
+                            let percentage = repo.monthlyLimit > 0 ? (repo.getTotalForCurrentMonth() / repo.monthlyLimit) * 100 : 0
+                            Text(String(format: "%.0f%% Terpakai", min(percentage, 100)))
                                 .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.green)
+                                .foregroundColor(.white)
                             Spacer()
-                            Text("Limit: Rp 3.800.000")
+                            Text("Limit: \(FormattedCurrency.format(repo.monthlyLimit))")
                                 .font(.system(size: 12))
-                                .foregroundColor(.gray)
+                                .foregroundColor(.white.opacity(0.8))
                         }
                         
                         // Progress bar
@@ -84,22 +85,40 @@ struct DashboardView: View {
                                     .fill(Color.gray.opacity(0.15))
                                     .frame(height: 12)
                                 
+                                let total = repo.getTotalForCurrentMonth()
+                                let ratio = repo.monthlyLimit > 0 ? min(total / repo.monthlyLimit, 1.0) : 0
+                                
                                 RoundedRectangle(cornerRadius: 6)
-                                    .fill(Color.green)
-                                    .frame(width: geometry.size.width * 0.65, height: 12)
+                                    .fill(Color.white)
+                                    .frame(width: geometry.size.width * CGFloat(ratio), height: 12)
                             }
                         }
                         .frame(height: 12)
                         
-                        Text("Anda masih dalam zona aman bulan ini.")
+                        let total2 = repo.getTotalForCurrentMonth()
+                        let ratio2 = repo.monthlyLimit > 0 ? total2 / repo.monthlyLimit : 0
+                        Text(ratio2 >= 1.0 ? "Anda telah melewati batas limit!" : (ratio2 >= 0.8 ? "Hati-hati, pengeluaran mendekati limit." : "Anda masih dalam zona aman bulan ini."))
                             .font(.system(size: 12))
-                            .foregroundColor(.gray)
+                            .foregroundColor(.white.opacity(0.8))
                             .padding(.top, 4)
                     }
                 }
                 .padding(24)
-                .background(Color.white)
+                .background(
+                    Group {
+                        let total = repo.getTotalForCurrentMonth()
+                        let ratio = repo.monthlyLimit > 0 ? total / repo.monthlyLimit : 0
+                        if ratio >= 1.0 {
+                            Color.red
+                        } else if ratio >= 0.8 {
+                            Color.orange
+                        } else {
+                            LinearGradient(gradient: Gradient(colors: [Color.green, Color.green.opacity(0.8)]), startPoint: .topLeading, endPoint: .bottomTrailing)
+                        }
+                    }
+                )
                 .cornerRadius(32)
+                .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
                 .padding(.horizontal, 20)
                 
                 // Kategori Utama
@@ -120,13 +139,35 @@ struct DashboardView: View {
                     .padding(.horizontal, 20)
                     
                     HStack(spacing: 16) {
-                        CategoryCard(icon: "fork.knife", title: "Makanan", amount: "Rp 850.000", bgColor: Color.orange.opacity(0.1), iconColor: .orange)
-                        CategoryCard(icon: "car.fill", title: "Transport", amount: "Rp 420.000", bgColor: Color.blue.opacity(0.1), iconColor: .blue)
+                        let breakdown = repo.getCategoryBreakdown()
+                        
+                        CategoryCard(
+                            icon: "fork.knife", 
+                            title: "Makanan", 
+                            amount: FormattedCurrency.format(breakdown["Makanan"] ?? 0), 
+                            bgColor: Color.orange.opacity(0.1), 
+                            iconColor: .orange
+                        )
+                        CategoryCard(
+                            icon: "car.fill", 
+                            title: "Transportasi", 
+                            amount: FormattedCurrency.format(breakdown["Transportasi"] ?? 0), 
+                            bgColor: Color.blue.opacity(0.1), 
+                            iconColor: .blue
+                        )
                     }
                     .padding(.horizontal, 20)
                     
                     HStack(spacing: 16) {
-                        CategoryCard(icon: "ticket.fill", title: "Entertain", amount: "Rp 310.000", bgColor: Color.purple.opacity(0.1), iconColor: .purple)
+                        let breakdown = repo.getCategoryBreakdown()
+                        
+                        CategoryCard(
+                            icon: "bag.fill", 
+                            title: "Belanja", 
+                            amount: FormattedCurrency.format(breakdown["Belanja"] ?? 0), 
+                            bgColor: Color.purple.opacity(0.1), 
+                            iconColor: .purple
+                        )
                         
                         // Tambah Kategori
                         VStack(alignment: .center, spacing: 12) {
@@ -162,28 +203,44 @@ struct DashboardView: View {
                     }
                     .padding(.horizontal, 20)
                     
-                    VStack(spacing: 12) {
-                        RecentActivityRow(
-                            icon: "bag.fill", 
-                            iconBgColor: Color.green.opacity(0.15), 
-                            iconColor: .green, 
-                            title: "Belanja Bulanan", 
-                            subtitle: "Hari ini, 14:20", 
-                            amount: "- Rp 120.000", 
-                            amountColor: .red
-                        )
-                        
-                        RecentActivityRow(
-                            icon: "banknote.fill", 
-                            iconBgColor: Color.green.opacity(0.15), 
-                            iconColor: .green, 
-                            title: "Gaji Masuk", 
-                            subtitle: "Kemarin, 09:00", 
-                            amount: "+ Rp 5.000.000", 
-                            amountColor: .green
-                        )
+                    if repo.expenses.isEmpty {
+                        Text("Belum ada aktivitas")
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                            .padding(.horizontal, 20)
+                    } else {
+                        VStack(spacing: 12) {
+                            ForEach(repo.expenses.sorted(by: { $0.date > $1.date }).prefix(5)) { expense in
+                                let iconName: String = {
+                                    switch expense.category {
+                                    case "Makanan": return "fork.knife"
+                                    case "Belanja": return "bag.fill"
+                                    case "Transportasi": return "car.fill"
+                                    default: return "creditcard.fill"
+                                    }
+                                }()
+                                let catColor: Color = {
+                                    switch expense.category {
+                                    case "Makanan": return .orange
+                                    case "Belanja": return .purple
+                                    case "Transportasi": return .blue
+                                    default: return .gray
+                                    }
+                                }()
+                                
+                                RecentActivityRow(
+                                    icon: iconName, 
+                                    iconBgColor: catColor.opacity(0.15), 
+                                    iconColor: catColor, 
+                                    title: expense.merchant, 
+                                    subtitle: "Hari ini", 
+                                    amount: "- \(FormattedCurrency.format(expense.amount))", 
+                                    amountColor: .red
+                                )
+                            }
+                        }
+                        .padding(.horizontal, 20)
                     }
-                    .padding(.horizontal, 20)
                 }
                 
                 Spacer(minLength: 120) // Tab bar clearance

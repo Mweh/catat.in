@@ -255,8 +255,9 @@ struct MainView: View {
         }
         .fullScreenCover(isPresented: $showScan) {
             ScanReceiptView(
-                onScan: { showScan = false },
-                onUpload: { showScan = false }
+                onDismiss: {
+                    showScan = false
+                }
             )
         }
         .fullScreenCover(isPresented: $showLimit) {
