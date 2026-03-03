@@ -209,8 +209,8 @@ struct DashboardView: View {
                             .foregroundColor(.gray)
                             .padding(.horizontal, 20)
                     } else {
-                        VStack(spacing: 12) {
-                            ForEach(repo.expenses.sorted(by: { $0.date > $1.date }).prefix(5)) { expense in
+                        List {
+                            ForEach(repo.expenses.sorted(by: { $0.date > $1.date })) { expense in
                                 let iconName: String = {
                                     switch expense.category {
                                     case "Makanan": return "fork.knife"
@@ -237,8 +237,22 @@ struct DashboardView: View {
                                     amount: "- \(FormattedCurrency.format(expense.amount))", 
                                     amountColor: .red
                                 )
+                                .listRowInsets(EdgeInsets())
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                            }
+                            .onDelete { indexSet in
+                                let sorted = repo.expenses.sorted(by: { $0.date > $1.date })
+                                for index in indexSet {
+                                    if let idx = repo.expenses.firstIndex(where: { $0.id == sorted[index].id }) {
+                                        repo.expenses.remove(at: idx)
+                                    }
+                                }
+                                repo.saveExpenses()
                             }
                         }
+                        .listStyle(.plain)
+                        .frame(height: min(CGFloat(repo.expenses.count) * 80, 400))
                         .padding(.horizontal, 20)
                     }
                 }

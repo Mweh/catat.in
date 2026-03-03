@@ -2,7 +2,8 @@ import SwiftUI
 
 struct SetMonthlyLimitView: View {
     @Environment(\.presentationMode) var presentationMode
-    @State private var limitText: String = "2500.00"
+    @EnvironmentObject var repo: ExpenseRepository
+    @State private var limitText: String = ""
     @State private var alertsOn: Bool = true
     
     var body: some View {
@@ -61,19 +62,23 @@ struct SetMonthlyLimitView: View {
                             }
                             
                             HStack {
-                                Text("$2,500.00")
+                                Text("\(FormattedCurrency.format(repo.monthlyLimit))")
                                     .font(.system(size: 32, weight: .bold))
                                     .foregroundColor(.black)
                                 Spacer()
                             }
                             
                             VStack(spacing: 8) {
+                                let total = repo.getTotalForCurrentMonth()
+                                let ratio = repo.monthlyLimit > 0 ? min(total / repo.monthlyLimit, 1.0) : 0
+                                let remaining = repo.monthlyLimit - total
+                                
                                 HStack {
-                                    Text("60% Used")
+                                    Text("\(String(format: "%.0f", ratio * 100))% Used")
                                         .font(.system(size: 14, weight: .medium))
                                         .foregroundColor(Color(red: 0.1, green: 0.2, blue: 0.3))
                                     Spacer()
-                                    Text("$1,000.00 Remaining")
+                                    Text("\(FormattedCurrency.format(max(0, remaining))) Remaining")
                                         .font(.system(size: 14, weight: .semibold))
                                         .foregroundColor(.black)
                                 }
@@ -86,8 +91,8 @@ struct SetMonthlyLimitView: View {
                                             .frame(height: 12)
                                         
                                         RoundedRectangle(cornerRadius: 6)
-                                            .fill(Color.green)
-                                            .frame(width: geometry.size.width * 0.6, height: 12)
+                                            .fill(ratio >= 1.0 ? Color.red : (ratio >= 0.8 ? Color.orange : Color.green))
+                                            .frame(width: geometry.size.width * CGFloat(ratio), height: 12)
                                     }
                                 }
                                 .frame(height: 12)
@@ -115,7 +120,7 @@ struct SetMonthlyLimitView: View {
                             .padding(.horizontal, 20)
                         
                         HStack(spacing: 12) {
-                            Text("$")
+                            Text("Rp")
                                 .font(.system(size: 20, weight: .semibold))
                                 .foregroundColor(.gray)
                             TextField("Amount", text: $limitText)
@@ -172,6 +177,10 @@ struct SetMonthlyLimitView: View {
                     
                     VStack(spacing: 16) {
                         Button(action: {
+                            let rawStr = limitText.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: "")
+                            if let newLimit = Double(rawStr) {
+                                repo.setLimit(newLimit)
+                            }
                             presentationMode.wrappedValue.dismiss()
                         }) {
                             Text("Save Changes")
@@ -199,6 +208,8 @@ struct SetMonthlyLimitView: View {
             }
         }
         .background(Color(white: 0.96).ignoresSafeArea())
-        .navigationBarHidden(true)
+        .onAppear {
+            limitText = String(format: "%.0f", repo.monthlyLimit)
+        }
     }
 }

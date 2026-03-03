@@ -42,7 +42,7 @@ class ExpenseRepository: ObservableObject {
     
     private let storageKey = "catatin_saved_expenses"
     
-    private func saveExpenses() {
+    func saveExpenses() {
         if let encoded = try? JSONEncoder().encode(expenses) {
             UserDefaults.standard.set(encoded, forKey: storageKey)
         }
