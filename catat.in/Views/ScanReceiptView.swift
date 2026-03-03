@@ -1,260 +1,171 @@
 import SwiftUI
 import Combine
 import AVFoundation
-import SwiftUI
 
 struct ScanReceiptView: View {
     @Environment(\.presentationMode) var presentationMode
     @EnvironmentObject var repo: ExpenseRepository
-    
+
     @StateObject private var scannerVM = ReceiptScannerViewModel()
-    @State private var showCamera = false
+    @StateObject private var hudVM = ScanOverlayViewModel()
+    @StateObject private var camera = CameraSession()
+
     @State private var showPhotoLibrary = false
     @State private var showPreview = false
     @State private var selectedImage: UIImage?
     @State private var isFlashOn = false
-    
+
     var onDismiss: (() -> Void)?
-    
+
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Button(action: {
-                    onDismiss?()
-                    presentationMode.wrappedValue.dismiss()
-                }) {
-                    Image(systemName: "arrow.left")
-                        .font(.system(size: 20))
-                        .foregroundColor(.black)
-                }
-                Spacer()
-                Text("Scan Struk Pengeluaran")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.black)
-                Spacer()
-                // Empty view for balancing back button
-                Image(systemName: "arrow.left").opacity(0)
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 20)
-            
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 24) {
-                    
-                    // Viewfinder area
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 32)
-                            .fill(Color(red: 0.94, green: 0.9, blue: 0.88).opacity(0.8)) // pinkish beige background
-                            .frame(height: 400)
-                        
-                        // Device mockup in the center
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color(white: 0.3)) // dark gray device frame
-                                .frame(width: 220, height: 320)
-                            
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.white) // receipt bg
-                                .frame(width: 200, height: 300)
-                            
-                            // Mock receipt text
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Receipt Total")
-                                Text("Amount        $100")
-                                Text("Date        10/20")
-                                Spacer()
-                            }
-                            .font(.system(size: 10, design: .monospaced))
-                            .foregroundColor(.gray)
-                            .padding(24)
-                            .frame(width: 200, height: 300, alignment: .topLeading)
-                            
-                            // "Posisikan struk dalam bingkai"
-                            Text("Posisikan struk dalam bingkai")
-                                .font(.system(size: 12))
-                                .foregroundColor(.white)
-                                .padding(.vertical, 8)
-                                .padding(.horizontal, 16)
-                                .background(Color.black.opacity(0.6))
-                                .cornerRadius(16)
-                        }
-                        
-                        // Green Scanning Corners
-                        VStack {
-                            HStack {
-                                CornerShape()
-                                    .stroke(Color.green, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                                    .frame(width: 40, height: 40)
-                                    .rotationEffect(.degrees(0))
-                                Spacer()
-                                CornerShape()
-                                    .stroke(Color.green, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                                    .frame(width: 40, height: 40)
-                                    .rotationEffect(.degrees(90))
-                            }
-                            Spacer()
-                            HStack {
-                                CornerShape()
-                                    .stroke(Color.green, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                                    .frame(width: 40, height: 40)
-                                    .rotationEffect(.degrees(-90))
-                                Spacer()
-                                CornerShape()
-                                    .stroke(Color.green, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                                    .frame(width: 40, height: 40)
-                                    .rotationEffect(.degrees(180))
-                            }
-                        }
-                        .padding(32)
-                        
-                        // Scan line effect
-                        Rectangle()
-                            .fill(LinearGradient(gradient: Gradient(colors: [Color.green.opacity(0.0), Color.green.opacity(0.4), Color.green.opacity(0.0)]), startPoint: .top, endPoint: .bottom))
-                            .frame(height: 10)
-                            .offset(y: -40) // mock offset
+        ZStack {
+            // ── 1. Live camera feed as background ──────────────────────────
+            CameraPreviewView(session: camera.session)
+                .ignoresSafeArea()
+
+            // ── 2. Scan HUD overlay ─────────────────────────────────────────
+            ScanOverlayView(viewModel: hudVM)
+                .ignoresSafeArea()
+
+            // ── 3. Chrome UI ────────────────────────────────────────────────
+            VStack(spacing: 0) {
+
+                // Top bar
+                HStack {
+                    Button(action: {
+                        camera.stop()
+                        onDismiss?()
+                        presentationMode.wrappedValue.dismiss()
+                    }) {
+                        circleButton(icon: "xmark")
                     }
-                    .padding(.horizontal, 24)
-                    
-                    Text("Catat.in akan mendeteksi nominal dan\nkategori belanja Anda secara otomatis dari\nstruk.")
-                        .font(.system(size: 14))
-                        .foregroundColor(.gray)
+
+                    Spacer()
+
+                    Text("Scan Struk")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(.white)
+
+                    Spacer()
+
+                    Button(action: toggleFlash) {
+                        circleButton(icon: isFlashOn ? "bolt.fill" : "bolt.slash.fill",
+                                     tint: isFlashOn ? .yellow : .white)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 56)
+
+                Spacer()
+
+                // Bottom controls
+                VStack(spacing: 20) {
+                    HStack(spacing: 44) {
+
+                        // Gallery
+                        Button(action: { showPhotoLibrary = true }) {
+                            iconAction(icon: "photo.on.rectangle", label: "Galeri")
+                        }
+
+                        // ── Main shutter ──────────────────────────────────
+                        Button(action: capturePhoto) {
+                            ZStack {
+                                Circle()
+                                    .stroke(Color.white, lineWidth: 3)
+                                    .frame(width: 80, height: 80)
+                                Circle()
+                                    .fill(Color.white)
+                                    .frame(width: 66, height: 66)
+                                // Shutter ring only — no camera icon
+                                Circle()
+                                    .stroke(Color.black.opacity(0.15), lineWidth: 1)
+                                    .frame(width: 54, height: 54)
+                            }
+                        }
+
+                        // Upload
+                        Button(action: { showPhotoLibrary = true }) {
+                            iconAction(icon: "arrow.up.doc", label: "Upload")
+                        }
+                    }
+
+                    Text("AI akan mendeteksi nominal & kategori secara otomatis")
+                        .font(.system(size: 12))
+                        .foregroundColor(.white.opacity(0.5))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 32)
-                        .padding(.top, 16)
-                    
-                    // Controls inside a white card at bottom
-                    VStack(spacing: 24) {
-                        // Capture Controls
-                        HStack(spacing: 32) {
-                            Button(action: { showPhotoLibrary = true }) {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color(white: 0.95))
-                                        .frame(width: 48, height: 48)
-                                    Image(systemName: "photo")
-                                        .foregroundColor(.gray)
-                                }
-                            }
-                            
-                            Button(action: {
-                                if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                                    showCamera = true
-                                } else {
-                                    showPhotoLibrary = true
-                                }
-                            }) {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.green.opacity(0.2))
-                                        .frame(width: 80, height: 80)
-                                    Circle()
-                                        .fill(Color.green)
-                                        .frame(width: 64, height: 64)
-                                    Image(systemName: "camera.fill")
-                                        .font(.system(size: 24))
-                                        .foregroundColor(.white)
-                                }
-                            }
-                            
-                            Button(action: toggleFlash) {
-                                ZStack {
-                                    Circle()
-                                        .fill(isFlashOn ? Color.yellow.opacity(0.2) : Color(white: 0.95))
-                                        .frame(width: 48, height: 48)
-                                    Image(systemName: isFlashOn ? "bolt.fill" : "bolt.slash.fill")
-                                        .foregroundColor(isFlashOn ? .yellow : .gray)
-                                }
-                            }
-                        }
-                        .padding(.top, 24)
-                        
-                        // Actions
-                        VStack(spacing: 16) {
-                            Button(action: {
-                                if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                                    showCamera = true
-                                } else {
-                                    showPhotoLibrary = true
-                                }
-                            }) {
-                                Text("Scan Sekarang")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 16)
-                                    .background(Color.green)
-                                    .cornerRadius(24)
-                            }
-                            
-                            Button(action: {
-                                showPhotoLibrary = true
-                            }) {
-                                Text("Upload Gambar")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(.black)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 16)
-                                    .background(Color(white: 0.95))
-                                    .cornerRadius(24)
-                            }
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 32)
-                    }
-                    .background(Color.white)
-                    .cornerRadius(40, corners: [.topLeft, .topRight])
-                    .shadow(color: Color.black.opacity(0.02), radius: 10, x: 0, y: -5)
-                    .padding(.top, 16)
+                }
+                .padding(.top, 28)
+                .padding(.bottom, 48)
+                .frame(maxWidth: .infinity)
+                .background(
+                    Color.black.opacity(0.55)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedCorner(radius: 36, corners: [.topLeft, .topRight]))
+                )
+            }
+
+            // ── 4. Processing spinner ───────────────────────────────────────
+            if case .processing = scannerVM.state {
+                Color.black.opacity(0.6).ignoresSafeArea()
+                VStack(spacing: 20) {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(1.5)
+                    Text("AI sedang membaca struk...")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(.white)
                 }
             }
         }
-        .background(Color(white: 0.98).ignoresSafeArea())
         .navigationBarHidden(true)
-        .overlay(
-            Group {
-                if case .processing = scannerVM.state {
-                    ZStack {
-                        Color.black.opacity(0.5).ignoresSafeArea()
-                        VStack(spacing: 24) {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                .scaleEffect(1.5)
-                            Text("AI sedang membaca struk...")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                        }
-                    }
-                }
-            }
-        )
-        .sheet(isPresented: $showCamera) {
-            CameraScannerView(selectedImage: $selectedImage, sourceType: .camera)
+        .onAppear {
+            camera.start()
+            // Start scan line animation immediately on open
+            hudVM.transition(to: .scanning)
         }
+        .onDisappear {
+            camera.stop()
+        }
+        // Gallery sheet
         .sheet(isPresented: $showPhotoLibrary) {
             CameraScannerView(selectedImage: $selectedImage, sourceType: .photoLibrary)
         }
+        // Image selected → OCR
         .onChange(of: selectedImage) { img in
-            if let targetImage = img {
-                scannerVM.processImage(targetImage)
-            }
+            guard let img else { return }
+            processImage(img)
         }
+        // OCR result handling
         .onReceive(scannerVM.$state) { state in
-            if case .success = state {
-                showPreview = true
-            } else if case .failed(let err) = state {
-                print(err)
-                scannerVM.reset()
-                selectedImage = nil
+            switch state {
+            case .success:
+                hudVM.transition(to: .success)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                    showPreview = true
+                }
+            case .failed(let err):
+                print("OCR failed:", err)
+                hudVM.transition(to: .failed)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    hudVM.transition(to: .idle)
+                    scannerVM.reset()
+                    selectedImage = nil
+                    camera.start()
+                }
+            default:
+                break
             }
         }
+        // Preview sheet
         .sheet(isPresented: Binding(
             get: { showPreview },
             set: { val in
                 if !val {
+                    hudVM.transition(to: .idle)
                     scannerVM.reset()
                     selectedImage = nil
+                    camera.start()
                 }
                 showPreview = val
             }
@@ -275,14 +186,39 @@ struct ScanReceiptView: View {
                         showPreview = false
                         scannerVM.reset()
                         selectedImage = nil
+                        hudVM.transition(to: .idle)
+                        camera.start()
                     }
                 )
             }
         }
     }
-    
+
+    // MARK: - Actions
+
+    private func capturePhoto() {
+        // Line is already animating — jump straight to detecting
+        hudVM.transition(to: .detecting)
+        camera.capturePhoto { image in
+            guard let image else {
+                // Fallback: open gallery if capture fails (e.g. simulator)
+                showPhotoLibrary = true
+                hudVM.transition(to: .scanning)
+                return
+            }
+            processImage(image)
+        }
+    }
+
+    private func processImage(_ image: UIImage) {
+        camera.stop()
+        // Go straight to detecting — no intermediate scanning delay
+        hudVM.transition(to: .detecting)
+        scannerVM.processImage(image)
+    }
+
     private func toggleFlash() {
-        guard let device = AVCaptureDevice.default(for: AVMediaType.video), device.hasTorch else { return }
+        guard let device = AVCaptureDevice.default(for: .video), device.hasTorch else { return }
         do {
             try device.lockForConfiguration()
             let isOn = device.torchMode == .on
@@ -290,25 +226,113 @@ struct ScanReceiptView: View {
             isFlashOn = !isOn
             device.unlockForConfiguration()
         } catch {
-            print("Torch could not be used")
+            print("Torch error:", error)
+        }
+    }
+
+    // MARK: - Helper sub-views
+
+    @ViewBuilder
+    private func circleButton(icon: String, tint: Color = .white) -> some View {
+        ZStack {
+            Circle()
+                .fill(Color.white.opacity(0.15))
+                .frame(width: 44, height: 44)
+            Image(systemName: icon)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(tint)
+        }
+    }
+
+    @ViewBuilder
+    private func iconAction(icon: String, label: String) -> some View {
+        VStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(0.15))
+                    .frame(width: 56, height: 56)
+                Image(systemName: icon)
+                    .font(.system(size: 22))
+                    .foregroundColor(.white)
+            }
+            Text(label)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.white.opacity(0.8))
         }
     }
 }
 
-// Helper for UI view styling
-struct CornerShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: 0, y: rect.maxY))
-        path.addLine(to: CGPoint(x: 0, y: 0))
-        path.addLine(to: CGPoint(x: rect.maxX, y: 0))
-        return path
+// MARK: - Camera Session Manager
+
+@MainActor
+class CameraSession: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate {
+    let session = AVCaptureSession()
+    private let photoOutput = AVCapturePhotoOutput()
+    private var captureCompletion: ((UIImage?) -> Void)?
+
+    override init() {
+        super.init()
+        setup()
+    }
+
+    private func setup() {
+        session.beginConfiguration()
+        session.sessionPreset = .photo
+
+        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+              let input = try? AVCaptureDeviceInput(device: device),
+              session.canAddInput(input) else {
+            session.commitConfiguration()
+            return
+        }
+
+        session.addInput(input)
+
+        if session.canAddOutput(photoOutput) {
+            session.addOutput(photoOutput)
+        }
+
+        session.commitConfiguration()
+    }
+
+    func start() {
+        guard !session.isRunning else { return }
+        Task.detached { [weak self] in
+            self?.session.startRunning()
+        }
+    }
+
+    func stop() {
+        guard session.isRunning else { return }
+        Task.detached { [weak self] in
+            self?.session.stopRunning()
+        }
+    }
+
+    func capturePhoto(completion: @escaping (UIImage?) -> Void) {
+        captureCompletion = completion
+        let settings = AVCapturePhotoSettings()
+        photoOutput.capturePhoto(with: settings, delegate: self)
+    }
+
+    nonisolated func photoOutput(_ output: AVCapturePhotoOutput,
+                                 didFinishProcessingPhoto photo: AVCapturePhoto,
+                                 error: Error?) {
+        guard error == nil,
+              let data = photo.fileDataRepresentation(),
+              let image = UIImage(data: data) else {
+            Task { @MainActor in self.captureCompletion?(nil) }
+            return
+        }
+        Task { @MainActor in self.captureCompletion?(image) }
     }
 }
 
+// MARK: - Shared shape helpers
+
 extension View {
     func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
-        clipShape( RoundedCorner(radius: radius, corners: corners) )
+        clipShape(RoundedCorner(radius: radius, corners: corners))
     }
 }
 
@@ -317,7 +341,11 @@ struct RoundedCorner: Shape {
     var corners: UIRectCorner = .allCorners
 
     func path(in rect: CGRect) -> Path {
-        let path = UIBezierPath(roundedRect: rect, byRoundingCorners: corners, cornerRadii: CGSize(width: radius, height: radius))
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: corners,
+            cornerRadii: CGSize(width: radius, height: radius)
+        )
         return Path(path.cgPath)
     }
 }
