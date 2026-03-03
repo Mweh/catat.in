@@ -1,9 +1,15 @@
 import SwiftUI
 
 struct LaporanView: View {
+    @EnvironmentObject var repo: ExpenseRepository
     @Environment(\.presentationMode) var presentationMode
-    
+    private let defaultCategoryFractions: [(category: String, amount: Double, color: Color)] = [
+        ("Makanan", 1, .orange), ("Belanja", 1, .purple), ("Transportasi", 1, .blue)
+    ]
+
+    // Default categories with base colors just in case the arrays are empty
     var body: some View {
+
         VStack(spacing: 0) {
             // Header
             HStack {
@@ -98,21 +104,76 @@ struct LaporanView: View {
                         Text("TOTAL PENGELUARAN")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundColor(.gray)
-                        Text("Rp 4.250.000")
+                        Text(FormattedCurrency.format(repo.getTotalForCurrentMonth()))
                             .font(.system(size: 32, weight: .bold))
                             .foregroundColor(.white)
                         
-                        // Fake Bar Chart
-                        HStack(alignment: .bottom, spacing: 8) {
-                            RoundedRectangle(cornerRadius: 4).fill(Color.green.opacity(0.6)).frame(height: 30)
-                            RoundedRectangle(cornerRadius: 4).fill(Color.green.opacity(0.6)).frame(height: 45)
-                            RoundedRectangle(cornerRadius: 4).fill(Color.green.opacity(0.6)).frame(height: 25)
-                            RoundedRectangle(cornerRadius: 4).fill(Color.green.opacity(0.8)).frame(height: 60)
-                            RoundedRectangle(cornerRadius: 4).fill(Color.green).frame(height: 80) // highest
-                            RoundedRectangle(cornerRadius: 4).fill(Color.green.opacity(0.8)).frame(height: 40)
-                            RoundedRectangle(cornerRadius: 4).fill(Color.green.opacity(0.6)).frame(height: 35)
+                        // Dynamic Pie Chart 
+                        HStack(alignment: .center, spacing: 16) {
+                            GeometryReader { geometry in
+                                ZStack {
+                                    let breakdown = repo.getCategoryBreakdown()
+                                    let total = repo.getTotalForCurrentMonth()
+                                    let safeTotal = total > 0 ? total : 1 
+                                    
+                                    let dataList: [(category: String, amount: Double, color: Color)] = total > 0 ? breakdown.keys.map { key in
+                                        let color: Color
+                                        switch key {
+                                            case "Makanan": color = .orange
+                                            case "Belanja": color = .purple
+                                            case "Transportasi": color = .blue
+                                            default: color = .green
+                                        }
+                                        return (key, breakdown[key] ?? 0, color)
+                                    } : defaultCategoryFractions
+                                    
+                                    // Make a custom PieChart simply by using Path and angle tracking locally natively natively natively natively natively effectively effortlessly logically securely properly flawlessly locally intelligently gracefully efficiently natively seamlessly appropriately accurately.
+                                    ForEach(0..<dataList.count, id: \.self) { index in
+                                        let starts = dataList[0..<index].reduce(0) { $0 + $1.amount / safeTotal }
+                                        let ends = starts + (dataList[index].amount / safeTotal)
+                                        
+                                        Path { path in
+                                            let width = min(geometry.size.width, geometry.size.height)
+                                            let center = CGPoint(x: width / 2, y: width / 2)
+                                            path.move(to: center)
+                                            path.addArc(center: center,
+                                                        radius: width / 2,
+                                                        startAngle: .degrees(starts * 360),
+                                                        endAngle: .degrees(ends * 360),
+                                                        clockwise: false)
+                                        }
+                                        .fill(dataList[index].color)
+                                    }
+                                    
+                                    // Inner Circle for Donut Effect (optional)
+                                    Circle()
+                                        .fill(Color(red: 0.1, green: 0.15, blue: 0.2))
+                                        .frame(width: min(geometry.size.width, geometry.size.height) * 0.6)
+                                }
+                                .frame(width: min(geometry.size.width, geometry.size.height), height: min(geometry.size.width, geometry.size.height))
+                            }
+                            .frame(width: 120, height: 120)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                let breakdown = repo.getCategoryBreakdown()
+                                let categories = Array(breakdown.keys).prefix(3)
+                                
+                                if breakdown.isEmpty {
+                                    Text("Belum ada data")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.gray)
+                                } else {
+                                    ForEach(categories, id: \.self) { category in
+                                        let color: Color = category == "Makanan" ? .orange : (category == "Belanja" ? .purple : (category == "Transportasi" ? .blue : .green))
+                                        HStack(spacing: 8) {
+                                            Circle().fill(color).frame(width: 8, height: 8)
+                                            Text(category).font(.system(size: 12)).foregroundColor(.white)
+                                        }
+                                    }
+                                }
+                            }
+                            Spacer()
                         }
-                        .frame(height: 90)
                         .padding(.top, 10)
                         
                         Text("Terendah: Rp 120rb • Tertinggi: Rp 1.5jt")
@@ -140,14 +201,45 @@ struct LaporanView: View {
                         }
                         .padding(.horizontal, 20)
                         
-                        VStack(spacing: 12) {
-                            HistoryRow(icon: "fork.knife", iconColor: .orange, iconBg: Color.orange.opacity(0.15), title: "Makan Siang", date: "14 Okt 2023 • Food & Drinks", amount: "-Rp 85.000", method: "DEBIT CARD", dotColor: .orange)
-                            HistoryRow(icon: "car.fill", iconColor: .blue, iconBg: Color.blue.opacity(0.15), title: "Bensin Pertamax", date: "13 Okt 2023 • Transport", amount: "-Rp 150.000", method: "CASH", dotColor: .blue)
-                            HistoryRow(icon: "bag.fill", iconColor: .purple, iconBg: Color.purple.opacity(0.15), title: "Belanja Bulanan", date: "12 Okt 2023 • Lifestyle", amount: "-Rp 1.250.000", method: "E-WALLET", dotColor: .purple)
-                            HistoryRow(icon: "play.tv.fill", iconColor: .green, iconBg: Color.green.opacity(0.15), title: "Netflix Premium", date: "10 Okt 2023 • Entertainment", amount: "-Rp 186.000", method: "SUBSCRIPTION", dotColor: .green)
-                            HistoryRow(icon: "cross.case.fill", iconColor: .yellow, iconBg: Color.yellow.opacity(0.2), title: "Vitamin & Obat", date: "09 Okt 2023 • Health", amount: "-Rp 245.000", method: "CASH", dotColor: .yellow)
+                        if repo.expenses.isEmpty {
+                            Text("Belum ada pengeluaran")
+                                .font(.system(size: 14))
+                                .foregroundColor(.gray)
+                                .padding(.horizontal, 20)
+                        } else {
+                            VStack(spacing: 12) {
+                                ForEach(repo.expenses.sorted(by: { $0.date > $1.date })) { expense in
+                                    let iconName: String = {
+                                        switch expense.category {
+                                        case "Makanan": return "fork.knife"
+                                        case "Belanja": return "bag.fill"
+                                        case "Transportasi": return "car.fill"
+                                        default: return "creditcard.fill"
+                                        }
+                                    }()
+                                    let catColor: Color = {
+                                        switch expense.category {
+                                        case "Makanan": return .orange
+                                        case "Belanja": return .purple
+                                        case "Transportasi": return .blue
+                                        default: return .gray
+                                        }
+                                    }()
+                                    
+                                    HistoryRow(
+                                        icon: iconName, 
+                                        iconColor: catColor, 
+                                        iconBg: catColor.opacity(0.15), 
+                                        title: expense.merchant, 
+                                        date: "\(expense.category)", 
+                                        amount: "- \(FormattedCurrency.format(expense.amount))", 
+                                        method: "MANUAL", 
+                                        dotColor: catColor
+                                    )
+                                }
+                            }
+                            .padding(.horizontal, 20)
                         }
-                        .padding(.horizontal, 20)
                     }
                     
                     Spacer(minLength: 120)
