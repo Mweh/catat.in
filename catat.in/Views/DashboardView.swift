@@ -240,6 +240,7 @@ struct DashboardView: View {
                                 .listRowInsets(EdgeInsets())
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
+                                .padding(8)
                             }
                             .onDelete { indexSet in
                                 let sorted = repo.expenses.sorted(by: { $0.date > $1.date })
