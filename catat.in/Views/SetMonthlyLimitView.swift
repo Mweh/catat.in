@@ -132,28 +132,7 @@ struct SetMonthlyLimitView: View {
                         .background(Color.white)
                         .cornerRadius(24)
                         .padding(.horizontal, 20)
-                        
-                        Text("Reset Cycle")
-                            .font(.system(size: 14))
-                            .foregroundColor(Color(red: 0.2, green: 0.3, blue: 0.4))
-                            .padding(.horizontal, 20)
-                            .padding(.top, 8)
-                        
-                        HStack {
-                            Image(systemName: "calendar")
-                                .foregroundColor(.gray)
-                            Text("1st of every month")
-                                .font(.system(size: 16))
-                                .foregroundColor(.black)
-                            Spacer()
-                            Image(systemName: "chevron.down")
-                                .foregroundColor(.gray)
-                        }
-                        .padding(20)
-                        .background(Color.white)
-                        .cornerRadius(24)
-                        .padding(.horizontal, 20)
-                        
+
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Threshold Alerts")

@@ -47,19 +47,7 @@ struct ScanOverlayView: View {
                 .offset(shakeOffset: shakeOffset)
                 .position(x: geo.size.width / 2, y: geo.size.height / 2)
 
-                // 3. Instruction label
-                VStack {
-                    Spacer()
-                    Text(viewModel.instructionText)
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundColor(.white.opacity(0.9))
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
-                        .background(Color.black.opacity(0.45))
-                        .clipShape(Capsule())
-                        .padding(.bottom, geo.size.height / 2 - frameHeight / 2 - 28)
-                        .animation(.easeInOut(duration: 0.3), value: viewModel.instructionText)
-                }
+                // Instruction label removed — HUD animations communicate state visually
             }
         }
         .onChange(of: viewModel.state) { newState in

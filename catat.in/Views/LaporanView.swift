@@ -31,16 +31,6 @@ struct LaporanView: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.black)
                 Spacer()
-                Button(action: {}) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.white)
-                            .frame(width: 44, height: 44)
-                            .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
-                        Image(systemName: "calendar")
-                            .foregroundColor(.black)
-                    }
-                }
             }
             .padding(.horizontal, 20)
             .padding(.top, 20)
@@ -48,57 +38,6 @@ struct LaporanView: View {
             
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 24) {
-                    
-                    // Filters
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            Button(action: {}) {
-                                HStack(spacing: 8) {
-                                    Text("Bulan Ini")
-                                        .font(.system(size: 14, weight: .semibold))
-                                    Image(systemName: "chevron.down")
-                                        .font(.system(size: 12))
-                                }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(Color.green)
-                                .foregroundColor(.white)
-                                .cornerRadius(20)
-                            }
-                            
-                            Button(action: {}) {
-                                HStack(spacing: 8) {
-                                    Text("Semua Kategori")
-                                        .font(.system(size: 14, weight: .medium))
-                                    Image(systemName: "line.3.horizontal.decrease")
-                                        .font(.system(size: 12))
-                                }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(Color.white)
-                                .foregroundColor(.black)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 20)
-                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                                )
-                            }
-                            
-                            Button(action: {}) {
-                                Text("Pengeluaran")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 10)
-                                    .background(Color.white)
-                                    .foregroundColor(.black)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 20)
-                                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                                    )
-                            }
-                        }
-                        .padding(.horizontal, 20)
-                    }
-                    
                     // Chart Card
                     VStack(alignment: .leading, spacing: 16) {
                         Text("TOTAL PENGELUARAN")
@@ -175,11 +114,6 @@ struct LaporanView: View {
                             Spacer()
                         }
                         .padding(.top, 10)
-                        
-                        Text("Terendah: Rp 120rb • Tertinggi: Rp 1.5jt")
-                            .font(.system(size: 12))
-                            .foregroundColor(.gray)
-                            .padding(.top, 4)
                     }
                     .padding(24)
                     .background(Color(red: 0.1, green: 0.15, blue: 0.2)) // dark slate
@@ -193,11 +127,6 @@ struct LaporanView: View {
                                 .font(.system(size: 18, weight: .bold))
                                 .foregroundColor(.black)
                             Spacer()
-                            Button("Lihat Semua") {
-                                
-                            }
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.green)
                         }
                         .padding(.horizontal, 20)
                         

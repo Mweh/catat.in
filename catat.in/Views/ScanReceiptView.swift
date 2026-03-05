@@ -10,6 +10,7 @@ struct ScanReceiptView: View {
     @StateObject private var hudVM = ScanOverlayViewModel()
     @StateObject private var camera = CameraSession()
 
+    @State private var showFilePicker = false
     @State private var showPhotoLibrary = false
     @State private var showPreview = false
     @State private var selectedImage: UIImage?
@@ -19,9 +20,9 @@ struct ScanReceiptView: View {
 
     var body: some View {
         ZStack {
-            // ── 1. Live camera feed as background ──────────────────────────
+            // ── 1. Live camera feed — true full-screen edge-to-edge ─────
             CameraPreviewView(session: camera.session)
-                .ignoresSafeArea()
+                .ignoresSafeArea(.all)
 
             // ── 2. Scan HUD overlay ─────────────────────────────────────────
             ScanOverlayView(viewModel: hudVM)
@@ -54,7 +55,9 @@ struct ScanReceiptView: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 56)
+                .padding(.top, UIApplication.shared.connectedScenes
+                    .compactMap { ($0 as? UIWindowScene)?.windows.first?.safeAreaInsets.top }
+                    .first.map { $0 + 8 } ?? 56)
 
                 Spacer()
 
@@ -62,7 +65,7 @@ struct ScanReceiptView: View {
                 VStack(spacing: 20) {
                     HStack(spacing: 44) {
 
-                        // Gallery
+                        // Gallery (left)
                         Button(action: { showPhotoLibrary = true }) {
                             iconAction(icon: "photo.on.rectangle", label: "Galeri")
                         }
@@ -83,9 +86,9 @@ struct ScanReceiptView: View {
                             }
                         }
 
-                        // Upload
-                        Button(action: { showPhotoLibrary = true }) {
-                            iconAction(icon: "arrow.up.doc", label: "Upload")
+                        // Upload from Files
+                        Button(action: { showFilePicker = true }) {
+                            iconAction(icon: "arrow.up.doc.fill", label: "Upload")
                         }
                     }
 
@@ -105,19 +108,15 @@ struct ScanReceiptView: View {
                 )
             }
 
-            // ── 4. Processing spinner ───────────────────────────────────────
+            // ── 4. Processing spinner (text removed — HUD communicates state) ──
             if case .processing = scannerVM.state {
-                Color.black.opacity(0.6).ignoresSafeArea()
-                VStack(spacing: 20) {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .scaleEffect(1.5)
-                    Text("AI sedang membaca struk...")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(.white)
-                }
+                Color.black.opacity(0.55).ignoresSafeArea()
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    .scaleEffect(1.8)
             }
         }
+        .ignoresSafeArea()
         .navigationBarHidden(true)
         .onAppear {
             camera.start()
@@ -127,9 +126,13 @@ struct ScanReceiptView: View {
         .onDisappear {
             camera.stop()
         }
-        // Gallery sheet
+        // Gallery sheet (left button)
         .sheet(isPresented: $showPhotoLibrary) {
             CameraScannerView(selectedImage: $selectedImage, sourceType: .photoLibrary)
+        }
+        // Files picker sheet (right button)
+        .sheet(isPresented: $showFilePicker) {
+            FileDocumentPickerView(selectedImage: $selectedImage)
         }
         // Image selected → OCR
         .onChange(of: selectedImage) { img in
@@ -201,8 +204,8 @@ struct ScanReceiptView: View {
         hudVM.transition(to: .detecting)
         camera.capturePhoto { image in
             guard let image else {
-                // Fallback: open gallery if capture fails (e.g. simulator)
-                showPhotoLibrary = true
+                // Fallback: open Files if capture fails (e.g. simulator)
+                showFilePicker = true
                 hudVM.transition(to: .scanning)
                 return
             }

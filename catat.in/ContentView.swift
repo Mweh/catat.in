@@ -44,9 +44,6 @@ struct OnboardingView: View {
                     Button(action: {
                         withAnimation { hasSeenOnboarding = true }
                     }) {
-                        Text("Lewati")
-                            .foregroundColor(.gray)
-                            .font(.system(size: 16, weight: .medium))
                     }
                     .padding()
                 } else {
@@ -198,7 +195,7 @@ struct MainView: View {
                 case 3:
                     Text("Laporan Placeholder").foregroundColor(.gray)
                 case 4:
-                    Text("Settings Placeholder").foregroundColor(.gray)
+                    ProfileSettingsView()
                 default: 
                     DashboardView(
                         onScanTapped: { showScan = true },

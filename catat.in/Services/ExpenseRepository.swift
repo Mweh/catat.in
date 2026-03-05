@@ -3,11 +3,42 @@ import Foundation
 
 class ExpenseRepository: ObservableObject {
     @Published var expenses: [Expense] = []
-    @Published var monthlyLimit: Double = 3800000 // default as seen in mock
-    
+    @Published var monthlyLimit: Double = 3800000
+    @Published var customCategories: [CustomCategory] = []
+
+    private let customCatKey = "catatin_custom_categories"
+
+    /// All categories: built-in first, then user-created ones
+    var allCategories: [CustomCategory] {
+        CustomCategory.builtIn + customCategories
+    }
+
     init() {
         loadExpenses()
         loadLimit()
+        loadCustomCategories()
+    }
+
+    func addCustomCategory(_ category: CustomCategory) {
+        // Avoid duplicates by name (case-insensitive)
+        guard !customCategories.contains(where: {
+            $0.name.lowercased() == category.name.lowercased()
+        }) else { return }
+        customCategories.append(category)
+        saveCustomCategories()
+    }
+
+    private func saveCustomCategories() {
+        if let encoded = try? JSONEncoder().encode(customCategories) {
+            UserDefaults.standard.set(encoded, forKey: customCatKey)
+        }
+    }
+
+    private func loadCustomCategories() {
+        if let data = UserDefaults.standard.data(forKey: customCatKey),
+           let decoded = try? JSONDecoder().decode([CustomCategory].self, from: data) {
+            customCategories = decoded
+        }
     }
     
     func addExpense(_ expense: Expense) {
