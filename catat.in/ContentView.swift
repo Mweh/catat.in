@@ -13,18 +13,21 @@ struct FormattedCurrency {
 
 struct ContentView: View {
     @State private var hasSeenOnboarding = UserDefaults.standard.bool(forKey: "hasSeenOnboarding")
+    @AppStorage("isLoggedIn") private var isLoggedIn: Bool = false
     @StateObject private var repo = ExpenseRepository()
     
     var body: some View {
         Group {
-            if hasSeenOnboarding {
-                MainView()
-                    .environmentObject(repo)
-            } else {
+            if !hasSeenOnboarding {
                 OnboardingView(hasSeenOnboarding: $hasSeenOnboarding)
                     .onChange(of: hasSeenOnboarding) { newValue in
                         UserDefaults.standard.set(newValue, forKey: "hasSeenOnboarding")
                     }
+            } else if !isLoggedIn {
+                LoginView()
+            } else {
+                MainView()
+                    .environmentObject(repo)
             }
         }
     }
